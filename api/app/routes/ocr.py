@@ -4,7 +4,7 @@
 # See LICENSE or go to <https://opensource.org/licenses/Apache-2.0> for full license details.
 
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.docx_extractor import extract_text_from_docx
 from app.schemas import DocumentTextOut, OCRBlock, OCRIn, OCRLine, OCROut, OCRPage, OCRWord
@@ -14,21 +14,13 @@ from app.vision import init_predictor
 router = APIRouter()
 
 
-def _get_ocr_predictor(ocr_in: OCRIn, req: Request):
-    """Use preloaded default predictor when params match to avoid first-request timeout (e.g. on Render)."""
-    state = getattr(req.app.state, "default_ocr_predictor", None), getattr(req.app.state, "default_ocr_request", None)
-    if state[0] is not None and state[1] is not None and ocr_in.model_dump() == state[1].model_dump():
-        return state[0]
-    return init_predictor(ocr_in)
-
-
 @router.post("/", response_model=list[OCROut], status_code=status.HTTP_200_OK, summary="Perform OCR")
-async def perform_ocr(request: OCRIn = Depends(), req: Request = None, files: list[UploadFile] = [File(...)]):
+async def perform_ocr(request: OCRIn = Depends(), files: list[UploadFile] = [File(...)]):
     """Runs docTR OCR model to analyze the input image"""
     try:
         # generator object to list
         content, filenames = await get_documents(files)
-        predictor = _get_ocr_predictor(request, req)
+        predictor = init_predictor(request)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -81,11 +73,11 @@ async def perform_ocr(request: OCRIn = Depends(), req: Request = None, files: li
     status_code=status.HTTP_200_OK,
     summary="Extract plain text from documents using OCR",
 )
-async def extract_text(request: OCRIn = Depends(), req: Request = None, files: list[UploadFile] = [File(...)]):
+async def extract_text(request: OCRIn = Depends(), files: list[UploadFile] = [File(...)]):
     """Runs docTR OCR model and returns flattened text for each page of each input document."""
     try:
         content, filenames = await get_documents(files)
-        predictor = _get_ocr_predictor(request, req)
+        predictor = init_predictor(request)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -112,7 +104,6 @@ async def extract_text(request: OCRIn = Depends(), req: Request = None, files: l
 )
 async def extract_resume(
     request: OCRIn = Depends(),
-    req: Request = None,
     files: list[UploadFile] = [File(...)]
 ):
     """
@@ -156,7 +147,7 @@ async def extract_resume(
                         )
                         
                         content, filenames = await get_documents([file_obj])
-                        predictor = _get_ocr_predictor(request, req)
+                        predictor = init_predictor(request)
                         out = predictor(content)
                         
                         for i, page in enumerate(out.pages):
@@ -201,7 +192,7 @@ async def extract_resume(
             )
             
             content, filenames = await get_documents([file_obj])
-            predictor = _get_ocr_predictor(request, req)
+            predictor = init_predictor(request)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
