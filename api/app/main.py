@@ -21,6 +21,12 @@ app.include_router(ocr.router, prefix="/ocr", tags=["ocr"])
 app.include_router(kie.router, prefix="/kie", tags=["kie"])
 
 
+@app.get("/health", summary="Health check")
+def health():
+    """Lightweight health check for Render/proxies. Does not load OCR models."""
+    return {"status": "ok"}
+
+
 # Middleware
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
