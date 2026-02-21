@@ -1,0 +1,21 @@
+# Render Blueprint: DocTR OCR API
+# Fixes 502 by using Render's PORT and a lightweight health check.
+# See: https://docs.render.com/blueprint-spec
+
+services:
+  - type: web
+    name: doctr-ocr
+    runtime: python
+    region: oregon
+
+    # App lives in api/ (monorepo)
+    rootDir: api
+
+    # Install deps (commit api/requirements.txt or use: make -C api lock && pip install -r api/requirements.txt)
+    buildCommand: pip install -r requirements.txt
+
+    # Must listen on $PORT so Render's proxy can reach the app (fixes 502)
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+    # Lightweight liveness check without loading OCR models
+    healthCheckPath: /health

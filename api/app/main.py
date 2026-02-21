@@ -4,14 +4,34 @@
 # See LICENSE or go to <https://opensource.org/licenses/Apache-2.0> for full license details.
 
 import time
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 
 from app import config as cfg
 from app.routes import detection, kie, ocr, recognition
+from app.schemas import OCRIn
+from app.vision import init_predictor
 
-app = FastAPI(title=cfg.PROJECT_NAME, description=cfg.PROJECT_DESCRIPTION, debug=cfg.DEBUG, version=cfg.VERSION)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Preload default OCR model at startup so first /ocr/text request stays under Render timeout."""
+    default_req = OCRIn()
+    app.state.default_ocr_request = default_req
+    app.state.default_ocr_predictor = init_predictor(default_req)
+    yield
+    # no explicit teardown needed
+
+
+app = FastAPI(
+    title=cfg.PROJECT_NAME,
+    description=cfg.PROJECT_DESCRIPTION,
+    debug=cfg.DEBUG,
+    version=cfg.VERSION,
+    lifespan=lifespan,
+)
 
 
 # Routing
